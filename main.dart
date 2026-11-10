@@ -1,4 +1,96 @@
 import 'dart:io';
+import 'dart:math';
+
+// UI THEME
+
+class UI {
+  // ANSI color
+  static const String reset = '\x1B[0m';
+  static const String bold = '\x1B[1m';
+  static const String blue = '\x1B[38;5;39m';
+  static const String pink = '\x1B[38;5;213m';
+  static const String yellow = '\x1B[38;5;226m';
+  static const String white = '\x1B[97m';
+
+  // Terminal size
+  static int get width {
+    try {
+      return stdout.hasTerminal ? stdout.terminalColumns : 80;
+    } catch (_) {
+      return 80;
+    }
+  }
+
+  static int get height {
+    try {
+      return stdout.hasTerminal ? stdout.terminalLines : 24;
+    } catch (_) {
+      return 24;
+    }
+  }
+
+  static String _strip(String s) =>
+      s.replaceAll(RegExp(r'\x1B\[[0-9;]*m'), '');
+
+  static String _margin(int contentWidth) =>
+      ' ' * max(0, (width - contentWidth) ~/ 2);
+
+  // Print line centered
+  static void center(String text, {String color = ''}) {
+    print('${_margin(_strip(text).length)}$color$text$reset');
+  }
+
+  static void block(List<String> lines, {String color = white}) {
+    final int w =
+        lines.fold(0, (int a, String l) => max(a, _strip(l).length));
+    final String m = _margin(w);
+    for (final String line in lines) {
+      print('$m$color$line$reset');
+    }
+  }
+
+  static String _colorizeLine(String line) {
+    final int i = line.indexOf(':');
+    if (i == -1) return '$white$line$reset';
+    return '$blue${line.substring(0, i + 1)}$reset '
+        '$yellow${line.substring(i + 1).trim()}$reset';
+  }
+
+  static void details(String text) {
+    block(text.trim().split('\n').map(_colorizeLine).toList());
+  }
+
+  static void divider({int length = 44, String ch = '-'}) {
+    center(ch * length, color: pink);
+  }
+
+  static void heading(String title) {
+    final String line = '=' * (title.length + 8);
+    print('');
+    center(line, color: blue);
+    center(title, color: '$bold$pink');
+    center(line, color: blue);
+    print('');
+  }
+
+  static void success(String msg) => center(msg, color: yellow);
+  static void error(String msg) => center(msg, color: '$bold$pink');
+  static void info(String msg) => center(msg, color: white);
+
+  static String? ask(String label) {
+    final String m = _margin(label.length + 24);
+    stdout.write('$m$pink$label$reset$yellow');
+    final String? input = stdin.readLineSync();
+    stdout.write(reset);
+    return input;
+  }
+
+  static void pause(String message) {
+    print('');
+    center(message, color: yellow);
+    stdin.readLineSync();
+  }
+}
 
 // Clear console screen function so that the user interface is cleaner
 Future<void> clearScreen() async {
@@ -107,8 +199,7 @@ class Participant extends CenterRecord with TimestampMixin {
 
   String get email => _email;
 
-  List<String> get borrowedResources =>
-      List.unmodifiable(_borrowedResources);
+  List<String> get borrowedResources => List.unmodifiable(_borrowedResources);
 
   // Register borrowed resource
   void addBorrowedResource(String resourceId) {
@@ -151,11 +242,10 @@ class LearningCenterSystem {
   // INPUT VALIDATION FUNCTIONS
 
   String? readRequired(String message) {
-    stdout.write(message);
-    String? input = stdin.readLineSync();
+    String? input = UI.ask(message);
 
     if (input == null || input.trim().isEmpty) {
-      print('Invalid input! This field cannot be empty.');
+      UI.error('Invalid input! This field cannot be empty.');
       return null;
     }
 
@@ -163,21 +253,19 @@ class LearningCenterSystem {
   }
 
   int? readMenuChoice() {
-    stdout.write('Enter your choice: ');
-
-    String? input = stdin.readLineSync();
+    String? input = UI.ask('Enter your choice: ');
 
     try {
       int choice = int.parse(input ?? '');
 
       if (choice < 1 || choice > 8) {
-        print('Invalid choice! Please select from 1 to 8.');
+        UI.error('Invalid choice! Please select from 1 to 8.');
         return null;
       }
 
       return choice;
     } catch (e) {
-      print('Invalid input! Please enter a valid number.');
+      UI.error('Invalid input! Please enter a valid number.');
       return null;
     }
   }
@@ -185,7 +273,7 @@ class LearningCenterSystem {
   // ADD LEARNING RESOURCE
 
   void addResource() {
-    print('\n========== ADD LEARNING RESOURCE ==========');
+    UI.heading('ADD LEARNING RESOURCE');
 
     String? title = readRequired('Enter resource title: ');
     if (title == null) return;
@@ -193,25 +281,24 @@ class LearningCenterSystem {
     String? category = readRequired('Enter resource category: ');
     if (category == null) return;
 
-    String id =
-        'R${_resourceCounter.toString().padLeft(3, '0')}';
+    String id = 'R${_resourceCounter.toString().padLeft(3, '0')}';
 
-    LearningResource resource =
-        LearningResource(id, title, category);
+    LearningResource resource = LearningResource(id, title, category);
 
     _resources.add(resource);
     _records[id] = resource;
 
     _resourceCounter++;
 
-    print('\nResource successfully added!');
-    print('Generated Resource ID: $id');
+    print('');
+    UI.success('Resource successfully added!');
+    UI.success('Generated Resource ID: $id');
   }
 
   // REGISTER PARTICIPANT
 
   void registerParticipant() {
-    print('\n========== REGISTER PARTICIPANT ==========');
+    UI.heading('REGISTER PARTICIPANT');
 
     String? name = readRequired('Enter participant name: ');
     if (name == null) return;
@@ -220,12 +307,11 @@ class LearningCenterSystem {
     if (email == null) return;
 
     if (!email.contains('@') || !email.contains('.')) {
-      print('Invalid email address!');
+      UI.error('Invalid email address!');
       return;
     }
 
-    String id =
-        'P${_participantCounter.toString().padLeft(3, '0')}';
+    String id = 'P${_participantCounter.toString().padLeft(3, '0')}';
 
     Participant participant = Participant(id, name, email);
 
@@ -234,28 +320,28 @@ class LearningCenterSystem {
 
     _participantCounter++;
 
-    print('\nParticipant successfully registered!');
-    print('Generated Participant ID: $id');
+    print('');
+    UI.success('Participant successfully registered!');
+    UI.success('Generated Participant ID: $id');
   }
 
   // BORROW LEARNING RESOURCE
 
   void borrowResource() {
-    print('\n========== BORROW LEARNING RESOURCE ==========');
+    UI.heading('BORROW LEARNING RESOURCE');
 
     if (_participants.isEmpty || _resources.isEmpty) {
-      print('You need at least one participant and one resource.');
+      UI.error('You need at least one participant and one resource.');
       return;
     }
 
-    displayResources();
+    displayResources(showHeading: false);
 
-    String? participantId =
-        readRequired('\nEnter Participant ID: ');
+    print('');
+    String? participantId = readRequired('Enter Participant ID: ');
     if (participantId == null) return;
 
-    String? resourceId =
-        readRequired('Enter Resource ID: ');
+    String? resourceId = readRequired('Enter Resource ID: ');
     if (resourceId == null) return;
 
     // Retrieve records through Map
@@ -263,12 +349,12 @@ class LearningCenterSystem {
     CenterRecord? resourceRecord = _records[resourceId];
 
     if (participantRecord is! Participant) {
-      print('Participant not found!');
+      UI.error('Participant not found!');
       return;
     }
 
     if (resourceRecord is! LearningResource) {
-      print('Learning resource not found!');
+      UI.error('Learning resource not found!');
       return;
     }
 
@@ -276,7 +362,7 @@ class LearningCenterSystem {
     LearningResource resource = resourceRecord;
 
     if (!resource.isAvailable) {
-      print('Sorry! This resource is already borrowed.');
+      UI.error('Sorry! This resource is already borrowed.');
       return;
     }
 
@@ -284,34 +370,33 @@ class LearningCenterSystem {
     if (resource.borrowResource()) {
       participant.addBorrowedResource(resource.id);
 
-      print('\nBorrowing successful!');
-      print('${participant.name} borrowed "${resource.name}".');
+      print('');
+      UI.success('Borrowing successful!');
+      UI.success('${participant.name} borrowed "${resource.name}".');
     }
   }
 
   // RETURN LEARNING RESOURCE
 
   void returnResource() {
-    print('\n========== RETURN LEARNING RESOURCE ==========');
+    UI.heading('RETURN LEARNING RESOURCE');
 
-    String? participantId =
-        readRequired('Enter Participant ID: ');
+    String? participantId = readRequired('Enter Participant ID: ');
     if (participantId == null) return;
 
-    String? resourceId =
-        readRequired('Enter Resource ID: ');
+    String? resourceId = readRequired('Enter Resource ID: ');
     if (resourceId == null) return;
 
     CenterRecord? participantRecord = _records[participantId];
     CenterRecord? resourceRecord = _records[resourceId];
 
     if (participantRecord is! Participant) {
-      print('Participant not found!');
+      UI.error('Participant not found!');
       return;
     }
 
     if (resourceRecord is! LearningResource) {
-      print('Resource not found!');
+      UI.error('Resource not found!');
       return;
     }
 
@@ -319,31 +404,32 @@ class LearningCenterSystem {
     LearningResource resource = resourceRecord;
 
     if (!participant.borrowedResources.contains(resource.id)) {
-      print('This participant did not borrow that resource.');
+      UI.error('This participant did not borrow that resource.');
       return;
     }
 
     if (resource.returnResource()) {
       participant.removeBorrowedResource(resource.id);
 
-      print('\nReturn successful!');
-      print('${resource.name} has been returned.');
+      print('');
+      UI.success('Return successful!');
+      UI.success('${resource.name} has been returned.');
     }
   }
 
   // DISPLAY RESOURCES
 
-  void displayResources() {
-    print('\n========== LEARNING RESOURCES ==========');
+  void displayResources({bool showHeading = true}) {
+    if (showHeading) UI.heading('LEARNING RESOURCES');
 
     if (_resources.isEmpty) {
-      print('No learning resources registered.');
+      UI.error('No learning resources registered.');
       return;
     }
 
     for (LearningResource resource in _resources) {
-      print('''
---------------------------------
+      UI.divider();
+      UI.details('''
 ID: ${resource.id}
 Title: ${resource.name}
 Category: ${resource.category}
@@ -354,63 +440,65 @@ Status: ${resource.isAvailable ? "Available" : "Borrowed"}
 
   // DISPLAY PARTICIPANTS
   void displayParticipants() {
-    print('\n========== PARTICIPANTS ==========');
+    UI.heading('PARTICIPANTS');
 
     if (_participants.isEmpty) {
-      print('No participants registered.');
+      UI.error('No participants registered.');
       return;
     }
 
     for (Participant participant in _participants) {
-      print(participant.getRecordDetails());
+      UI.divider();
+      UI.details(participant.getRecordDetails());
     }
   }
 
   // DISPLAY ALL RECORDS
 
   void displayAllRecords() {
-    print('\n========== ALL CENTER RECORDS ==========');
+    UI.heading('ALL CENTER RECORDS');
 
     if (_records.isEmpty) {
-      print('No records available.');
+      UI.error('No records available.');
       return;
     }
 
     // Polymorphism
     for (CenterRecord record in _records.values) {
-      print('--------------------------------');
-      print(record.getRecordDetails());
+      UI.divider();
+      UI.details(record.getRecordDetails());
     }
   }
 
   // SEARCH RECORD
   void searchRecord() {
-    print('\n========== SEARCH RECORD ==========');
+    UI.heading('SEARCH RECORD');
 
     String? id = readRequired('Enter Record ID: ');
     if (id == null) return;
 
     CenterRecord? record = _records[id];
 
+    print('');
     if (record != null) {
-      print('\nRecord found!');
-      print(record.getRecordDetails());
+      UI.success('Record found!');
+      UI.divider();
+      UI.details(record.getRecordDetails());
     } else {
-      print('No record found with ID: $id');
+      UI.error('No record found with ID: $id');
     }
   }
 
   // SYSTEM SUMMARY
 
   void displaySummary() {
-    print('\n========== SYSTEM SUMMARY ==========');
+    UI.heading('SYSTEM SUMMARY');
 
     int totalResources = _resources.length;
     int totalParticipants = _participants.length;
 
-    int availableResources = _resources
-        .where((resource) => resource.isAvailable)
-        .length;
+    int availableResources =
+        _resources.where((resource) => resource.isAvailable).length;
 
     int borrowedResources = totalResources - availableResources;
 
@@ -419,101 +507,124 @@ Status: ${resource.isAvailable ? "Available" : "Borrowed"}
         ? 0.0
         : (availableResources / totalResources) * 100;
 
-    print('Total Learning Resources: $totalResources');
-    print('Total Participants: $totalParticipants');
-    print('Available Resources: $availableResources');
-    print('Borrowed Resources: $borrowedResources');
-
-    print(
-      'Resource Availability Rate: ${availabilityRate.toStringAsFixed(2)}%',
-    );
+    UI.details('''
+Total Learning Resources: $totalResources
+Total Participants: $totalParticipants
+Available Resources: $availableResources
+Borrowed Resources: $borrowedResources
+Resource Availability Rate: ${availabilityRate.toStringAsFixed(2)}%
+''');
   }
 
   // MAIN MENU
 
   void displayMenu() {
-    print('\n============================================');
-    print(' COMMUNITY LEARNING CENTER MANAGEMENT SYSTEM');
-    print('============================================');
-    print('[1] Add Learning Resource');
-    print('[2] Register Participant');
-    print('[3] Borrow Learning Resource');
-    print('[4] Return Learning Resource');
-    print('[5] View All Records');
-    print('[6] Search Record');
-    print('[7] View System Summary');
-    print('[8] Exit');
-    print('============================================');
+    // Vertical centering (menu is about 17 lines tall)
+    int topSpace = max(0, (UI.height - 17) ~/ 2);
+    print('\n' * topSpace);
+
+    const String bar = '============================================';
+    UI.center(bar, color: UI.blue);
+    UI.center('COMMUNITY LEARNING CENTER', color: '${UI.bold}${UI.pink}');
+    UI.center('MANAGEMENT SYSTEM', color: '${UI.bold}${UI.pink}');
+    UI.center(bar, color: UI.blue);
+    print('');
+
+    final List<String> items = [
+      'Add Learning Resource',
+      'Register Participant',
+      'Borrow Learning Resource',
+      'Return Learning Resource',
+      'View All Records',
+      'Search Record',
+      'View System Summary',
+      'Exit',
+    ];
+
+    UI.block([
+      for (int i = 0; i < items.length; i++)
+        '${UI.pink}[${i + 1}]${UI.reset} ${UI.yellow}${items[i]}${UI.reset}',
+    ]);
+
+    print('');
+    UI.center(bar, color: UI.blue);
+    print('');
   }
 
   // RUN APPLICATION
-Future<void> run() async {
-  bool isRunning = true;
+  Future<void> run() async {
+    bool isRunning = true;
 
-  print('\nWelcome to the Community Learning Center!');
-
-  await Future.delayed(Duration(seconds: 2));
-
-  while (isRunning) {
     await clearScreen();
+    print('\n' * max(0, (UI.height ~/ 2) - 2));
+    UI.center('Welcome to the', color: UI.yellow);
+    UI.center('COMMUNITY LEARNING CENTER!', color: '${UI.bold}${UI.pink}');
 
-    displayMenu();
+    await Future.delayed(Duration(seconds: 2));
 
-    int? choice = readMenuChoice();
+    while (isRunning) {
+      await clearScreen();
 
-    if (choice == null) {
-      print('\nPress ENTER to try again...');
-      stdin.readLineSync();
-      continue;
-    }
+      displayMenu();
 
-    try {
-      switch (choice) {
-        case 1:
-          addResource();
-          break;
+      int? choice = readMenuChoice();
 
-        case 2:
-          registerParticipant();
-          break;
-
-        case 3:
-          borrowResource();
-          break;
-
-        case 4:
-          returnResource();
-          break;
-
-        case 5:
-          displayAllRecords();
-          break;
-
-        case 6:
-          searchRecord();
-          break;
-
-        case 7:
-          displaySummary();
-          break;
-
-        case 8:
-          isRunning = false;
-          print('\nThank you for using the system!');
-          print('Application terminated successfully.');
-          break;
+      if (choice == null) {
+        UI.pause('Press ENTER to try again...');
+        continue;
       }
-    } catch (e) {
-      print('\nAn unexpected error occurred: $e');
-    }
 
-    if (isRunning) {
-      print('\nPress ENTER to return to the main menu...');
-      stdin.readLineSync();
+      // Clear again so each chosen option appears as its own centered page
+      await clearScreen();
+
+      try {
+        switch (choice) {
+          case 1:
+            addResource();
+            break;
+
+          case 2:
+            registerParticipant();
+            break;
+
+          case 3:
+            borrowResource();
+            break;
+
+          case 4:
+            returnResource();
+            break;
+
+          case 5:
+            displayAllRecords();
+            break;
+
+          case 6:
+            searchRecord();
+            break;
+
+          case 7:
+            displaySummary();
+            break;
+
+          case 8:
+            isRunning = false;
+            print('');
+            UI.success('Thank you for using the system!');
+            UI.info('Application terminated successfully.');
+            break;
+        }
+      } catch (e) {
+        UI.error('An unexpected error occurred: $e');
+      }
+
+      if (isRunning) {
+        UI.pause('Press ENTER to return to the main menu...');
+      }
     }
   }
 }
-}
+
 // MAIN FUNCTION
 Future<void> main() async {
   LearningCenterSystem system = LearningCenterSystem();
