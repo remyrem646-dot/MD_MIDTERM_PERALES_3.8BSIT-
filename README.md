@@ -25,7 +25,7 @@ and view system summaries.
 3. Borrow Learning Resources
 4. Return Learning Resources
 5. View All Records
-6. Search Records
+6. Search Records(To search Resources and Registered participants make sure to enter (R001 or P001) it wont locate if small letter).
 7. View System Summary
 8. Input Validation and Error Handling
 
